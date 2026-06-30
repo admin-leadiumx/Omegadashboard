@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Lead Lists Dashboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0f172a;--surface:#1e293b;--surface2:#263348;--border:#334155;
+      --blue:#3b82f6;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;
+      --purple:#a855f7;--cyan:#06b6d4;--orange:#f97316;
+      --text:#f1f5f9;--muted:#94a3b8;--r:10px;
+    }
+    html{font-size:15px}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;line-height:1.5;min-height:100vh}
+
+    /* Header */
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .brand{display:flex;align-items:center;gap:12px}
+    .brand img{height:36px;width:auto}
+    .brand-title{font-size:.95rem;font-weight:700}
+    .brand-sub{font-size:.68rem;color:var(--muted);display:block}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .refresh-badge{font-size:.72rem;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px;display:flex;align-items:center;gap:5px}
+    .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    /* Layout */
+    main{max-width:1300px;margin:0 auto;padding:20px 16px 48px}
+
+    /* State overlay */
+    #overlay{position:fixed;inset:60px 0 0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:50}
+    .spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .err-box{background:var(--surface);border:1px solid var(--red);border-radius:var(--r);padding:24px 28px;max-width:520px;text-align:center}
+    .err-box h2{color:var(--red);margin-bottom:8px}
+    .err-box p{color:var(--muted);font-size:.85rem;line-height:1.7}
+    .retry{background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 18px;cursor:pointer;font-size:.85rem;font-weight:600;margin-top:12px}
+
+    /* Section */
+    .lead-section{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:18px 20px;margin-bottom:22px}
+    .sec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .sec-title{font-size:1.02rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+    .sec-pill{font-size:.66rem;background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);border-radius:20px;padding:2px 10px;font-weight:600}
+
+    /* KPI chips */
+    .chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+    .chip{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;position:relative;overflow:hidden}
+    .chip::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,var(--blue))}
+    .chip-label{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+    .chip-val{font-size:1.5rem;font-weight:700;line-height:1.1;margin-top:2px;font-variant-numeric:tabular-nums}
+
+    /* Toolbar */
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+    .toolbar input,.toolbar select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem;outline:none}
+    .toolbar input:focus,.toolbar select:focus{border-color:var(--blue)}
+    .toolbar select option{background:var(--surface2)}
+    .tbtn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:.78rem;cursor:pointer;white-space:nowrap}
+    .tbtn:hover{border-color:var(--blue);color:var(--blue)}
+    .count{font-size:.74rem;color:var(--muted);margin-left:auto}
+
+    /* Table */
+    .tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+    .tscroll{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.78rem}
+    thead th{background:var(--bg);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.65rem;padding:9px 14px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
+    thead th:hover{color:var(--text)}
+    thead th.sa::after{content:' ↑';color:var(--blue)}
+    thead th.sd::after{content:' ↓';color:var(--blue)}
+    tbody tr{border-top:1px solid var(--border);transition:background .1s}
+    tbody tr:hover{background:var(--surface2)}
+    tbody td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
+    td.mono{font-family:monospace}
+    .yn-yes{color:#34d399;font-weight:600}
+    .yn-no{color:var(--muted)}
+    .empty td{text-align:center;color:var(--muted);padding:34px;font-size:.85rem}
+
+    /* Pagination */
+    .pag{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap}
+    .pag .pi{font-size:.72rem;color:var(--muted)}
+    .pagr{display:flex;align-items:center;gap:4px}
+    .pb{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.72rem;font-weight:600}
+    .pb:hover:not(:disabled){background:var(--blue);border-color:var(--blue)}
+    .pb.on{background:var(--blue);border-color:var(--blue)}
+    .pb:disabled{opacity:.35;cursor:not-allowed}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <img src="logo.png" alt="logo"/>
+    <span><span class="brand-title">Lead Lists</span><span class="brand-sub">Land — Not Talked To</span></span>
+  </div>
+  <div class="header-right">
+    <span style="font-size:.68rem;color:var(--muted)" id="lu"></span>
+    <div class="refresh-badge"><div class="dot"></div><span>live</span></div>
+  </div>
+</header>
+
+<div id="overlay">
+  <div class="spinner" id="sp"></div>
+  <div style="color:var(--muted);font-size:.88rem" id="st">Loading lead lists…</div>
+  <div class="err-box" id="eb" style="display:none">
+    <h2>⚠️ Unable to Load Data</h2>
+    <p id="em">Could not fetch from Google Sheet.</p>
+    <p>Each sheet must be shared as <strong>Anyone with the link → Viewer</strong> (or Published to web).</p>
+    <button class="retry" onclick="loadAll()">↺ Retry</button>
+  </div>
+</div>
+
+<main id="dash" style="display:none">
+  <!-- Sections render here -->
+</main>
+
+<script>
+/* ── CONFIG: one entry per Google Sheet (title = the sheet's own name) ── */
+const SECTIONS = [
+  {
+    key:'janmar',
+    title:'Land Not Talked to January 1 to March 14',
+    icon:'🗂️',
+    sheetId:'1ltGS3psr0WZSeNrxvtHl9Rt2CGYEPQv9DooHRW2WFXE',
+    gid:'1285820647'
+  },
+  {
+    key:'marjun',
+    title:'Land Not Talked to March 15th to June 15th',
+    icon:'🗂️',
+    sheetId:'1dnWHeKrm88OtzeslQXHume102_iZpNsImmIw2lXmof4',
+    gid:'1957588272'
+  }
+];
+const PAGE_SIZE=50;
+
+/* ── STATE ── */
+const stateBy={}; // key -> {rows, cols, filtered, page, sField, sDir}
+
+/* ── UTILS ── */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const csvUrl=s=>`https://docs.google.com/spreadsheets/d/${s.sheetId}/export?format=csv&gid=${s.gid}`;
+const fmtPhone=v=>{const d=String(v||'').replace(/\D/g,'');return d.length===10?`(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`:(d.length===11&&d[0]==='1'?`(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`:(v||'—'));};
+
+/* ── FETCH ── */
+function fetchSheet(s){
+  return new Promise((resolve,reject)=>{
+    Papa.parse(csvUrl(s),{
+      download:true, header:true, skipEmptyLines:true,
+      complete:res=>{
+        const cols=(res.meta.fields||[]).filter(c=>c&&c.trim());
+        const rows=(res.data||[]).filter(r=>cols.some(c=>(r[c]||'').trim()!==''));
+        resolve({cols,rows});
+      },
+      error:err=>reject(err)
+    });
+  });
+}
+
+/* ── KPI CHIPS (generic, adapts to the columns present) ── */
+function buildChips(cols,rows){
+  const chips=[];
+  chips.push({label:'Total Leads',val:rows.length.toLocaleString(),accent:'var(--blue)'});
+  if(cols.includes('State')){
+    const states=new Set(rows.map(r=>(r.State||'').trim().toUpperCase()).filter(Boolean));
+    chips.push({label:'States',val:states.size,accent:'var(--purple)'});
+  }
+  if(cols.includes('Call Attempts')){
+    const nums=rows.map(r=>parseInt(r['Call Attempts'],10)).filter(n=>!isNaN(n));
+    const avg=nums.length?Math.round(nums.reduce((a,b)=>a+b,0)/nums.length):0;
+    chips.push({label:'Avg Call Attempts',val:avg,accent:'var(--yellow)'});
+  }
+  if(cols.includes('Talk To')){
+    const talked=rows.filter(r=>/^yes/i.test((r['Talk To']||'').trim())).length;
+    chips.push({label:'Talked To',val:talked.toLocaleString(),accent:'var(--green)'});
+  }
+  if(cols.includes('Duplicate')){
+    const dups=rows.filter(r=>/^yes/i.test((r['Duplicate']||'').trim())).length;
+    chips.push({label:'Duplicates',val:dups.toLocaleString(),accent:'var(--red)'});
+  }
+  return chips;
+}
+
+/* ── CELL RENDER ── */
+function renderCell(col,val){
+  const v=(val||'').trim();
+  if(col==='Phone')return`<td class="mono">${esc(fmtPhone(v))}</td>`;
+  if(/^(talk to|duplicate|listed\/wholesaler)$/i.test(col)){
+    if(/^yes/i.test(v))return`<td class="yn-yes">${esc(v)}</td>`;
+    if(/^no/i.test(v))return`<td class="yn-no">${esc(v)||'No'}</td>`;
+  }
+  return`<td>${esc(v)||'<span style="color:var(--muted)">—</span>'}</td>`;
+}
+
+/* ── RENDER SECTION SHELL ── */
+function renderSection(s,data){
+  const st={...data,filtered:data.rows.slice(),page:1,sField:null,sDir:1};
+  stateBy[s.key]=st;
+  const chips=buildChips(data.cols,data.rows);
+  const sec=document.createElement('section');
+  sec.className='lead-section';
+  sec.innerHTML=`
+    <div class="sec-head">
+      <span class="sec-title">${s.icon} ${esc(s.title)}</span>
+      <span class="sec-pill">${data.rows.length.toLocaleString()} leads</span>
+    </div>
+    <div class="chips">${chips.map(c=>`<div class="chip" style="--accent:${c.accent}"><div class="chip-label">${esc(c.label)}</div><div class="chip-val">${c.val}</div></div>`).join('')}</div>
+    <div class="toolbar">
+      <input type="text" placeholder="🔍 search phone / name / state…" id="q_${s.key}" style="min-width:240px"/>
+      <button class="tbtn" id="exp_${s.key}">⬇ Export CSV</button>
+      <span class="count" id="cnt_${s.key}"></span>
+    </div>
+    <div class="tcard">
+      <div class="tscroll">
+        <table>
+          <thead><tr id="thead_${s.key}"></tr></thead>
+          <tbody id="tbody_${s.key}"></tbody>
+        </table>
+      </div>
+      <div class="pag">
+        <span class="pi" id="pi_${s.key}"></span>
+        <div class="pagr" id="pgr_${s.key}"></div>
+      </div>
+    </div>`;
+  $('dash').appendChild(sec);
+
+  // header (sortable)
+  const thead=$(`thead_${s.key}`);
+  thead.innerHTML=data.cols.map(c=>`<th data-col="${esc(c)}">${esc(c)}</th>`).join('');
+  thead.querySelectorAll('th').forEach(th=>th.onclick=()=>sortSection(s.key,th.dataset.col));
+
+  // search
+  $(`q_${s.key}`).addEventListener('input',e=>{
+    const q=e.target.value.toLowerCase().trim();
+    const st=stateBy[s.key];
+    st.filtered = q? st.rows.filter(r=>['Phone','Name','State'].some(c=>(r[c]||'').toLowerCase().includes(q))) : st.rows.slice();
+    st.page=1;
+    if(st.sField)applySort(st);
+    renderBody(s.key);
+  });
+  // export
+  $(`exp_${s.key}`).onclick=()=>exportCSV(s);
+
+  renderBody(s.key);
+}
+
+function applySort(st){
+  const f=st.sField, dir=st.sDir;
+  st.filtered.sort((a,b)=>{
+    let x=(a[f]||''),y=(b[f]||'');
+    const nx=parseFloat(String(x).replace(/[^0-9.\-]/g,'')), ny=parseFloat(String(y).replace(/[^0-9.\-]/g,''));
+    const bothNum=!isNaN(nx)&&!isNaN(ny)&&String(x).trim()!==''&&String(y).trim()!=='';
+    if(bothNum)return (nx-ny)*dir;
+    return String(x).localeCompare(String(y))*dir;
+  });
+}
+function sortSection(key,col){
+  const st=stateBy[key];
+  if(st.sField===col)st.sDir*=-1; else {st.sField=col;st.sDir=1;}
+  applySort(st);
+  st.page=1;
+  document.querySelectorAll(`#thead_${key} th`).forEach(th=>{
+    th.classList.remove('sa','sd');
+    if(th.dataset.col===col)th.classList.add(st.sDir===1?'sa':'sd');
+  });
+  renderBody(key);
+}
+
+/* ── RENDER BODY + PAGINATION ── */
+function renderBody(key){
+  const s=SECTIONS.find(x=>x.key===key), st=stateBy[key];
+  const tbody=$(`tbody_${key}`), cols=st.cols;
+  const total=st.filtered.length, pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(st.page>pages)st.page=pages;
+  const start=(st.page-1)*PAGE_SIZE, slice=st.filtered.slice(start,start+PAGE_SIZE);
+
+  if(!slice.length){
+    tbody.innerHTML=`<tr class="empty"><td colspan="${cols.length}">No leads match your search.</td></tr>`;
+  } else {
+    tbody.innerHTML=slice.map(r=>`<tr>${cols.map(c=>renderCell(c,r[c])).join('')}</tr>`).join('');
+  }
+  $(`cnt_${key}`).textContent=`${total.toLocaleString()} of ${st.rows.length.toLocaleString()} leads`;
+  $(`pi_${key}`).textContent=total?`Showing ${start+1}–${Math.min(start+PAGE_SIZE,total)} of ${total.toLocaleString()}`:'No rows';
+
+  const pgr=$(`pgr_${key}`); pgr.innerHTML='';
+  const mk=(label,pg,opts={})=>{
+    const b=document.createElement('button');b.className='pb'+(opts.on?' on':'');b.textContent=label;
+    if(opts.dis)b.disabled=true; else b.onclick=()=>{st.page=pg;renderBody(key);};
+    pgr.appendChild(b);
+  };
+  mk('‹',st.page-1,{dis:st.page<=1});
+  const win=2; let from=Math.max(1,st.page-win), to=Math.min(pages,st.page+win);
+  if(from>1){mk('1',1,{on:st.page===1});if(from>2)pgr.insertAdjacentHTML('beforeend','<span class="pi" style="padding:0 4px">…</span>');}
+  for(let p=from;p<=to;p++)mk(String(p),p,{on:p===st.page});
+  if(to<pages){if(to<pages-1)pgr.insertAdjacentHTML('beforeend','<span class="pi" style="padding:0 4px">…</span>');mk(String(pages),pages,{on:st.page===pages});}
+  mk('›',st.page+1,{dis:st.page>=pages});
+}
+
+/* ── EXPORT (current filtered view) ── */
+function exportCSV(s){
+  const st=stateBy[s.key], cols=st.cols;
+  const lines=[cols.map(c=>`"${c.replace(/"/g,'""')}"`).join(',')];
+  st.filtered.forEach(r=>lines.push(cols.map(c=>`"${String(r[c]==null?'':r[c]).replace(/"/g,'""')}"`).join(',')));
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=s.title.replace(/[^a-z0-9]+/gi,'_')+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ── BOOT ── */
+async function loadAll(){
+  $('sp').style.display='block';$('eb').style.display='none';$('st').style.display='block';
+  $('dash').style.display='none';$('dash').innerHTML='';
+  try{
+    const results=await Promise.all(SECTIONS.map(fetchSheet));
+    SECTIONS.forEach((s,i)=>renderSection(s,results[i]));
+    $('overlay').style.display='none';
+    $('dash').style.display='block';
+    $('lu').textContent='Updated '+new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  }catch(e){
+    $('sp').style.display='none';$('st').style.display='none';
+    $('em').textContent='Could not fetch the lead sheets. '+(e&&e.message?e.message:'');
+    $('eb').style.display='block';
+  }
+}
+loadAll();
+</script>
+</body>
+</html>

@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Lead Lists Dashboard</title>
+  <title>AI Call Dashboard</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -21,9 +22,10 @@
     header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
     .brand{display:flex;align-items:center;gap:12px}
     .brand img{height:36px;width:auto}
-    .brand-title{font-size:.95rem;font-weight:700}
     .brand-sub{font-size:.68rem;color:var(--muted);display:block}
     .header-right{display:flex;align-items:center;gap:10px}
+    .hbtn{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;white-space:nowrap}
+    .hbtn:hover{border-color:var(--blue);color:var(--blue)}
     .refresh-badge{font-size:.72rem;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px;display:flex;align-items:center;gap:5px}
     .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -37,297 +39,992 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     .err-box{background:var(--surface);border:1px solid var(--red);border-radius:var(--r);padding:24px 28px;max-width:520px;text-align:center}
     .err-box h2{color:var(--red);margin-bottom:8px}
-    .err-box p{color:var(--muted);font-size:.85rem;line-height:1.7}
+    .err-box p,.err-box ol{color:var(--muted);font-size:.85rem;line-height:1.7}
+    .err-box ol{text-align:left;padding-left:18px;margin-top:8px}
     .retry{background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 18px;cursor:pointer;font-size:.85rem;font-weight:600;margin-top:12px}
 
-    /* Section */
-    .lead-section{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:18px 20px;margin-bottom:22px}
-    .sec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-    .sec-title{font-size:1.02rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
-    .sec-pill{font-size:.66rem;background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);border-radius:20px;padding:2px 10px;font-weight:600}
+    /* Section titles */
+    .sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin:24px 0 10px;display:flex;align-items:center;gap:8px}
+    .sec::after{content:'';flex:1;height:1px;background:var(--border)}
 
-    /* KPI chips */
-    .chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-    .chip{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;position:relative;overflow:hidden}
-    .chip::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,var(--blue))}
-    .chip-label{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
-    .chip-val{font-size:1.5rem;font-weight:700;line-height:1.1;margin-top:2px;font-variant-numeric:tabular-nums}
+    /* Quick range */
+    .ranges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .pill{background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:3px 12px;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .12s}
+    .pill:hover{border-color:var(--blue);color:var(--text)}
+    .pill.on{background:var(--blue);border-color:var(--blue);color:#fff}
 
-    /* Toolbar */
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-    .toolbar input,.toolbar select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem;outline:none}
-    .toolbar input:focus,.toolbar select:focus{border-color:var(--blue)}
-    .toolbar select option{background:var(--surface2)}
-    .tbtn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:.78rem;cursor:pointer;white-space:nowrap}
-    .tbtn:hover{border-color:var(--blue);color:var(--blue)}
-    .count{font-size:.74rem;color:var(--muted);margin-left:auto}
+    /* KPI grid */
+    .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+    .k{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;position:relative;overflow:hidden;transition:transform .12s}
+    .k:hover{transform:translateY(-2px)}
+    .k::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,var(--blue));border-radius:var(--r) var(--r) 0 0}
+    .k-icon{position:absolute;right:12px;top:12px;font-size:1.2rem;opacity:.18}
+    .k-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+    .k-val{font-size:1.75rem;font-weight:700;line-height:1.1;margin:3px 0 2px;font-variant-numeric:tabular-nums}
+    .k-sub{font-size:.65rem;color:var(--muted)}
+    .badge{display:inline-block;font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:20px;margin-top:3px}
+    .good{background:rgba(34,197,94,.15);color:#22c55e}
+    .warn{background:rgba(245,158,11,.15);color:#f59e0b}
+    .bad{background:rgba(239,68,68,.15);color:#ef4444}
+
+    /* Chart tabs */
+    .chart-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+    .ctab{background:none;border:none;color:var(--muted);font-size:.78rem;font-weight:600;padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .12s;white-space:nowrap}
+    .ctab:hover{color:var(--text)}
+    .ctab.on{color:var(--blue);border-bottom-color:var(--blue)}
+    .chart-panel{display:none}
+    .chart-panel.on{display:block}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center}
+    .chart-card h3{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:14px;text-align:center}
+    .chart-wrap{position:relative;width:100%;max-width:860px;margin:0 auto}
+    .chart-wrap-sm{position:relative;width:100%;max-width:380px;margin:0 auto}
+    .charts-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:700px){.charts-2{grid-template-columns:1fr}}
+
+    /* Compliance */
+    .comp-card{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.25);border-radius:var(--r);padding:14px 18px}
+    .comp-title{font-size:.75rem;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+    .viol{font-size:.78rem;padding:4px 8px;border-radius:4px;display:inline-block;background:rgba(239,68,68,.15);color:#ef4444}
+
+    /* Filters */
+    .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
+    .fg{display:flex;flex-direction:column;gap:4px}
+    .fg label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+    .fg select,.fg input{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 9px;font-size:.8rem;outline:none}
+    .fg select:focus,.fg input:focus{border-color:var(--blue)}
+    .fg select option{background:var(--surface2)}
+    .clr{background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.8rem;cursor:pointer;align-self:flex-end}
+    .clr:hover{color:var(--text);border-color:var(--blue)}
 
     /* Table */
     .tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+    .tbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+    .ttitle{font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
     .tscroll{overflow-x:auto}
     table{width:100%;border-collapse:collapse;font-size:.78rem}
-    thead th{background:var(--bg);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.65rem;padding:9px 14px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
+    thead th{background:var(--bg);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.65rem;padding:8px 14px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
     thead th:hover{color:var(--text)}
     thead th.sa::after{content:' ↑';color:var(--blue)}
     thead th.sd::after{content:' ↓';color:var(--blue)}
     tbody tr{border-top:1px solid var(--border);transition:background .1s}
     tbody tr:hover{background:var(--surface2)}
-    tbody td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
-    td.mono{font-family:monospace}
-    .yn-yes{color:#34d399;font-weight:600}
-    .yn-no{color:var(--muted)}
-    .empty td{text-align:center;color:var(--muted);padding:34px;font-size:.85rem}
+    tbody td{padding:8px 14px;vertical-align:middle}
+    tbody tr.rs{border-left:3px solid #22c55e}
+    tbody tr.ri{border-left:3px solid #3b82f6}
+    tbody tr.rc{border-left:3px solid #f59e0b}
+    tbody tr.rd{border-left:3px solid #ef4444}
+    tbody tr.rn{border-left:3px solid #f87171}
+    tbody tr.rp{border-left:3px solid #a855f7}
+
+    /* Result badges */
+    .b{display:inline-block;border-radius:20px;padding:2px 8px;font-size:.65rem;font-weight:700;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+    .b-dna{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+    .b-dnc{background:#450a0a;color:#ef4444;border:1px solid #7f1d1d}
+    .b-call_later{background:#1c1917;color:#f59e0b;border:1px solid #78350f}
+    .b-property_sold{background:#1a0533;color:#c084fc;border:1px solid #6b21a8}
+    .b-not_interested{background:#1c0a0a;color:#f87171;border:1px solid #7f1d1d}
+    .b-interested{background:#0c1a4a;color:#93c5fd;border:1px solid #1e3a8a}
+    .b-scheduled_appointment{background:#042f2e;color:#34d399;border:1px solid #065f46}
+    .b-dna-vm{background:#1e293b;color:#64748b;border:1px solid #475569}
+    .b-dna-ivr{background:#1c1917;color:#92400e;border:1px solid #78350f}
+    .b-dna-rej{background:#1c0a0a;color:#dc2626;border:1px solid #7f1d1d}
+    .db{font-size:.65rem;padding:2px 7px;border-radius:4px;font-weight:600;text-transform:uppercase}
+    .di{background:#1e3a5f;color:#60a5fa}
+    .do{background:#1a2e1a;color:#86efac}
+
+    /* Transcript */
+    .tc{max-width:240px}
+    .ts{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:.72rem;cursor:pointer}
+    .eb{background:none;border:none;color:var(--blue);font-size:.68rem;cursor:pointer;padding:1px 0;display:block}
 
     /* Pagination */
     .pag{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap}
-    .pag .pi{font-size:.72rem;color:var(--muted)}
+    .pagl{display:flex;align-items:center;gap:8px}
     .pagr{display:flex;align-items:center;gap:4px}
+    .psz{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:.72rem}
+    .pi{font-size:.72rem;color:var(--muted)}
     .pb{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.72rem;font-weight:600}
     .pb:hover:not(:disabled){background:var(--blue);border-color:var(--blue)}
     .pb.on{background:var(--blue);border-color:var(--blue)}
     .pb:disabled{opacity:.35;cursor:not-allowed}
+    .empty td{text-align:center;color:var(--muted);padding:36px;font-size:.85rem}
+
+    /* Section wrappers */
+    .dash-section{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+    .dash-section-plain{padding:0;margin-bottom:0}
+    .filter-badge{font-size:.62rem;background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);border-radius:20px;padding:2px 8px;font-weight:600;margin-left:6px}
+    .table-section{background:rgba(255,255,255,.012);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:18px 20px;margin-top:16px}
+    .table-filter-note{font-size:.65rem;color:#64748b;margin-bottom:8px}
+
+    /* Sparklines */
+    .spark{display:block;width:100%;height:32px;margin-top:8px;opacity:.8}
+    .spark-up{color:#22c55e}
+    .spark-flat{color:#94a3b8}
+    .spark-down{color:#ef4444}
+
+    /* Full Detail Modal */
+    .detail-over{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+    .detail-modal{background:#1e293b;border:1px solid #334155;border-radius:12px;width:min(760px,95vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,.6)}
+    .detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;border-bottom:1px solid #334155;gap:12px}
+    .detail-head-title{font-weight:700;font-size:.9rem;color:#f1f5f9;word-break:break-all}
+    .detail-close{background:none;border:none;color:#94a3b8;font-size:1.4rem;cursor:pointer;flex-shrink:0;line-height:1}
+    .detail-close:hover{color:#f1f5f9}
+    .detail-body{padding:16px 20px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .detail-field{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 14px}
+    .detail-field label{font-size:.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600;display:block;margin-bottom:4px}
+    .detail-field span{font-size:.82rem;color:#f1f5f9;word-break:break-all}
+    .detail-transcript{grid-column:span 2;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px 14px}
+    .detail-transcript label{font-size:.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600;display:block;margin-bottom:8px}
+    .detail-transcript pre{font-size:.8rem;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;line-height:1.7;max-height:280px;overflow-y:auto;font-family:inherit}
+    .detail-audio{grid-column:span 2;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 14px}
+    @media(max-width:520px){.detail-body{grid-template-columns:1fr}.detail-transcript,.detail-audio{grid-column:span 1}}
+
+    /* Drill-down panel */
+    .drill-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5)}
+    .drill-panel{position:fixed;top:0;right:0;bottom:0;width:min(600px,95vw);background:#1e293b;border-left:1px solid #334155;display:flex;flex-direction:column;z-index:301;transform:translateX(100%);transition:transform .25s ease}
+    .drill-panel.open{transform:translateX(0)}
+    .drill-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #334155;gap:12px;flex-wrap:wrap}
+    .drill-title{font-weight:700;font-size:.9rem;color:#f1f5f9}
+    .drill-count{font-size:.72rem;color:#94a3b8;background:#0f172a;border:1px solid #334155;border-radius:20px;padding:2px 10px}
+    .drill-close{background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer;line-height:1}
+    .drill-close:hover{color:#f1f5f9}
+    .drill-filter-btn{background:#3b82f6;border:none;color:#fff;border-radius:6px;padding:4px 12px;font-size:.75rem;cursor:pointer;white-space:nowrap}
+    .drill-filter-btn:hover{background:#1d4ed8}
+    .drill-body{flex:1;overflow-y:auto;padding:0}
+    .drill-table{width:100%;border-collapse:collapse;font-size:.75rem}
+    .drill-table thead th{background:#0f172a;color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:.62rem;letter-spacing:.05em;padding:8px 14px;text-align:left;position:sticky;top:0}
+    .drill-table tbody tr{border-top:1px solid #334155;cursor:pointer}
+    .drill-table tbody tr:hover{background:#263348}
+    .drill-table tbody td{padding:7px 14px;vertical-align:middle;color:#f1f5f9}
+    .drill-empty{text-align:center;padding:40px;color:#94a3b8;font-size:.85rem}
+    /* chart cursor hint */
+    canvas{cursor:pointer}
+
+    /* Modal */
+    .mover{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+    .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);max-width:680px;width:100%;max-height:80vh;display:flex;flex-direction:column}
+    .mh{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+    .mt{font-weight:600;font-size:.9rem}
+    .mc{background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer}
+    .mc:hover{color:var(--text)}
+    .mb{padding:18px;overflow-y:auto;font-size:.82rem;color:var(--muted);white-space:pre-wrap;word-break:break-word;line-height:1.7}
   </style>
 </head>
 <body>
 
 <header>
   <div class="brand">
-    <img src="logo.png" alt="logo"/>
-    <span><span class="brand-title">Lead Lists</span><span class="brand-sub">Land — Not Talked To</span></span>
+    <span><span style="font-size:.95rem;font-weight:700">AI Call Dashboard</span><span class="brand-sub">Call Intelligence</span></span>
   </div>
   <div class="header-right">
+    <button class="hbtn" onclick="exportCSV()">⬇ Export CSV</button>
     <span style="font-size:.68rem;color:var(--muted)" id="lu"></span>
-    <div class="refresh-badge"><div class="dot"></div><span>live</span></div>
+    <div class="refresh-badge"><div class="dot"></div><span id="cd">60s</span></div>
   </div>
 </header>
 
 <div id="overlay">
   <div class="spinner" id="sp"></div>
-  <div style="color:var(--muted);font-size:.88rem" id="st">Loading lead lists…</div>
+  <div style="color:var(--muted);font-size:.88rem" id="st">Loading call data…</div>
   <div class="err-box" id="eb" style="display:none">
     <h2>⚠️ Unable to Load Data</h2>
     <p id="em">Could not fetch from Google Sheet.</p>
-    <p>Each sheet must be shared as <strong>Anyone with the link → Viewer</strong> (or Published to web).</p>
-    <button class="retry" onclick="loadAll()">↺ Retry</button>
+    <p>Publish the sheet: <strong>File → Share → Publish to web → CSV</strong></p>
+    <ol><li>Open Google Sheet</li><li>File → Publish to web → CSV → Publish</li><li>Share → Anyone with link → Viewer</li></ol>
+    <button class="retry" onclick="loadData()">↺ Retry</button>
   </div>
 </div>
 
 <main id="dash" style="display:none">
-  <!-- Sections render here -->
+
+  <!-- Global filter section -->
+  <div class="dash-section">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">🌐 Global Date Filter</span>
+      <span class="filter-badge">affects KPIs · Charts · Analytics · DNC</span>
+    </div>
+    <div class="ranges" id="qr">
+      <button class="pill on" onclick="setRange('today')">Today</button>
+      <button class="pill" onclick="setRange('7d')">Last 7 Days</button>
+      <button class="pill" onclick="setRange('30d')">Last 30 Days</button>
+      <button class="pill" onclick="setRange('all')">All Time</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="sec" style="margin-top:16px">📊 Performance</div>
+  <div class="kpis">
+    <div class="k" style="--accent:var(--blue)"><span class="k-icon">📞</span><div class="k-label">Total Dials<span class="kpi-tip" data-tip="Total outbound call attempts made by the AI in the selected period.">i</span></div><div class="k-val" id="kTotal">—</div><div class="k-sub">all attempts</div><svg class="spark" id="spkTotal" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:var(--green)"><span class="k-icon">🎯</span><div class="k-label">Connect Rate<span class="kpi-tip" data-tip="% of dials where a human answered. Your north-star metric. Industry avg 8-12%. Above 20% = excellent.">i</span></div><div class="k-val" id="kCR">—</div><div class="k-sub" id="kCRs">answered/total</div><div id="kCRb"></div><svg class="spark" id="spkCR" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:#34d399"><span class="k-icon">📅</span><div class="k-label">Booking/Connect<span class="kpi-tip" data-tip="Of answered calls, what % booked an appointment. Above 20% = strong. Isolates agent quality from dial volume.">i</span></div><div class="k-val" id="kBC">—</div><div class="k-sub">appts per answered</div><div id="kBCb"></div><svg class="spark" id="spkBC" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:var(--yellow)"><span class="k-icon">🔁</span><div class="k-label">Dials to Book<span class="kpi-tip" data-tip="Average attempts before a lead books. Lower = better cadence. Use this to set your retry limit.">i</span></div><div class="k-val" id="kDB">—</div><div class="k-sub">avg before appt</div></div>
+    <div class="k" style="--accent:var(--purple)"><span class="k-icon">👥</span><div class="k-label">Lead Reach Rate<span class="kpi-tip" data-tip="% of unique leads where at least one call was answered. Low = most leads never had a real conversation.">i</span></div><div class="k-val" id="kRR">—</div><div class="k-sub" id="kRRs">leads connected</div><div id="kRRb"></div><svg class="spark" id="spkRR" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:var(--cyan)"><span class="k-icon">🗓️</span><div class="k-label">Appts Booked<span class="kpi-tip" data-tip="Total Scheduled Appointments confirmed by the AI agent in the selected period.">i</span></div><div class="k-val" id="kAppts">—</div><div class="k-sub">scheduled</div><svg class="spark" id="spkAppts" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:var(--orange)"><span class="k-icon">⏱️</span><div class="k-label">Avg Duration<span class="kpi-tip" data-tip="Average call duration on answered calls. Short answered calls may indicate hang-ups.">i</span></div><div class="k-val" id="kDur">—</div><div class="k-sub">on answered calls</div><svg class="spark" id="spkDur" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    <div class="k" style="--accent:var(--red)"><span class="k-icon">⚠️</span><div class="k-label">DNC Violations<span class="kpi-tip" data-tip="Calls made AFTER a lead was marked Do Not Call. Legal compliance risk — zero tolerance required.">i</span></div><div class="k-val" id="kDNC">—</div><div class="k-sub">calls after DNC</div><div id="kDNCb"></div></div>
+    <div class="k" style="--accent:#f97316"><span class="k-icon">🗑️</span><div class="k-label">Wasted Dials<span class="kpi-tip" data-tip="Dials to leads with 5+ DNA attempts and zero connects. Dead numbers burning dial capacity.">i</span></div><div class="k-val" id="kWaste">—</div><div class="k-sub">5+ DNA, no connect</div></div>
+  </div>
+
+  <!-- No data message -->
+  <div id="noDataMsg" style="display:none;align-items:center;justify-content:center;padding:32px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin:12px 0;gap:12px;flex-direction:column">
+    <span style="font-size:2rem">📭</span>
+    <span style="color:var(--muted);font-size:.9rem">No calls found for this date range</span>
+    <button onclick="setRange('all')" style="background:var(--blue);border:none;color:#fff;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:.82rem">View All Time</button>
+  </div>
+
+  <!-- DNC Compliance Alert -->
+  <div class="comp-card" id="compCard" style="display:none;margin-top:12px">
+    <div class="comp-title">🚨 DNC Compliance Violations — Calls made AFTER DNC result</div>
+    <div id="compBody"></div>
+  </div>
+
+  <!-- Charts (tabbed — only renders active tab) -->
+  <div class="sec">📈 Analytics</div>
+  <div class="chart-tabs">
+    <button class="ctab on" onclick="showTab(0)">Results</button>
+    <button class="ctab" onclick="showTab(1)">Daily Trend</button>
+    <button class="ctab" onclick="showTab(2)">Hourly Connect Rate</button>
+    <button class="ctab" onclick="showTab(3)">DNA Breakdown</button>
+    <button class="ctab" onclick="showTab(4)">Attempt Analysis</button>
+  </div>
+
+  <div class="chart-panel on" id="tab0">
+    <div class="charts-2">
+      <div class="chart-card"><h3>Calls by Result</h3><div class="chart-wrap"><canvas id="cResults" height="240"></canvas></div></div>
+      <div class="chart-card"><h3>Answered vs DNA</h3><div class="chart-wrap-sm"><canvas id="cDonut" height="240"></canvas></div></div>
+    </div>
+  </div>
+  <div class="chart-panel" id="tab1">
+    <div class="chart-card"><h3>Calls per Day</h3><div class="chart-wrap"><canvas id="cDaily" height="240"></canvas></div></div>
+  </div>
+  <div class="chart-panel" id="tab2">
+    <div class="chart-card"><h3>Connect Rate by Hour of Day <span style="font-size:.65rem;font-weight:400;color:#64748b">(Central Time)</span></h3><div class="chart-wrap"><canvas id="cHourly" height="240"></canvas></div></div>
+  </div>
+  <div class="chart-panel" id="tab3">
+    <div class="chart-card"><h3>DNA Auto-Classification <span style="font-size:.65rem;font-weight:400;color:#64748b">(from transcript)</span></h3><div class="chart-wrap-sm"><canvas id="cDNA" height="280"></canvas></div></div>
+  </div>
+  <div class="chart-panel" id="tab4">
+    <div class="charts-2">
+      <div class="chart-card"><h3>Connect Rate by Attempt #</h3><div class="chart-wrap"><canvas id="cAttempt" height="240"></canvas></div></div>
+      <div class="chart-card"><h3>Attempts per Lead Distribution</h3><div class="chart-wrap"><canvas id="cDist" height="240"></canvas></div></div>
+    </div>
+  </div>
+
+  </div><!-- end dash-section -->
+
+  <!-- Call Log -->
+  <div class="table-section">
+  <div class="sec" style="margin-top:0">📋 Call Log</div>
+  <div class="table-filter-note">⚙ These filters apply to the call log table only — use the Global Date Filter above for KPIs &amp; charts</div>
+  <div class="filters">
+    <div class="fg"><label>Result</label>
+      <select id="fRes"><option value="">All Results</option></select>
+    </div>
+    <div class="fg"><label>Phone</label><input type="text" id="fPhone" placeholder="search…" style="width:130px"/></div>
+    <button class="clr" onclick="clearFilters()">✕ Clear</button>
+  </div>
+  <div class="tcard">
+    <div class="tbar"><span class="ttitle">Recent Calls</span><span class="pi" id="rCount"></span></div>
+    <div class="tscroll">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('date')">Date</th>
+          <th onclick="sortBy('phone')">Phone</th>
+          <th>Dir</th>
+          <th onclick="sortBy('duration')">Dur</th>
+          <th onclick="sortBy('result')">Result</th>
+          <th>DNA Type</th>
+          <th>Rec</th>
+          <th>Transcript</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pag" id="pag">
+      <div class="pagl">
+        <label class="pi">Rows:</label>
+        <select class="psz" id="psz" onchange="chgPgSz()"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
+        <span class="pi" id="pi"></span>
+      </div>
+      <div class="pagr" id="pgbtns"></div>
+    </div>
+  </div>
+
+  </div><!-- end table-section -->
+
+  <!-- Lead Intelligence -->
+  <div class="table-section" style="margin-top:16px">
+  <div class="sec" style="margin-top:0">🔍 Lead Intelligence</div>
+  <div class="tcard">
+    <div class="tbar">
+      <span class="ttitle">By Lead (Phone)</span>
+      <input type="text" id="leadSearch" placeholder="filter phone…" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;color:var(--text);font-size:.78rem;width:160px"/>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Phone</th><th style="text-align:center">Dials</th><th style="text-align:center">Answered</th>
+          <th style="text-align:center">DNA</th><th style="text-align:center">Booked</th>
+          <th style="text-align:center">DNC</th><th style="text-align:center">Violation</th>
+          <th>Last Result</th><th>Last Call</th>
+        </tr></thead>
+        <tbody id="ltbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:8px 16px;font-size:.72rem;color:var(--muted)" id="lCount"></div>
+  </div>
+
+  </div><!-- end lead table-section -->
 </main>
 
+<!-- Full Detail Modal -->
+<div class="detail-over" id="detailOver" style="display:none" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-modal">
+    <div class="detail-head">
+      <span class="detail-head-title" id="detailTitle">Call Detail</span>
+      <button class="detail-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Drill-down Panel -->
+<div class="drill-overlay" id="drillOverlay" style="display:none" onclick="closeDrill()"></div>
+<div class="drill-panel" id="drillPanel">
+  <div class="drill-head">
+    <span class="drill-title" id="drillTitle">Drill Down</span>
+    <span class="drill-count" id="drillCount"></span>
+    <button class="drill-filter-btn" onclick="applyDrillFilter()">Apply as Filter ↓</button>
+    <button class="drill-close" onclick="closeDrill()">✕</button>
+  </div>
+  <div class="drill-body">
+    <table class="drill-table">
+      <thead><tr><th>Date/Time</th><th>Phone</th><th>Dur</th><th>Result</th><th>Transcript</th><th></th></tr></thead>
+      <tbody id="drillBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Transcript Modal -->
+<div class="mover" id="modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="mh"><span class="mt" id="mTitle">Transcript</span><button class="mc" onclick="$('modal').style.display='none'">✕</button></div>
+    <div class="mb" id="mBody"></div>
+  </div>
+</div>
+
+<!-- Audio Modal -->
+<div id="aMod" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:22px;width:90%;max-width:440px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-weight:600;font-size:.9rem">🎙️ Call Recording</span>
+      <button onclick="closeAudio()" style="background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer">✕</button>
+    </div>
+    <audio id="aPlay" controls style="width:100%;accent-color:#3b82f6">No audio support.</audio>
+    <div style="margin-top:10px;text-align:center"><a id="aDl" href="#" download style="color:#3b82f6;font-size:.78rem">⬇ Download</a></div>
+  </div>
+</div>
+
 <script>
-/* ── CONFIG: one entry per Google Sheet (title = the sheet's own name) ── */
-const SECTIONS = [
-  {
-    key:'janmar',
-    title:'Land Not Talked to January 1 to March 14',
-    icon:'🗂️',
-    sheetId:'1ltGS3psr0WZSeNrxvtHl9Rt2CGYEPQv9DooHRW2WFXE',
-    gid:'1285820647'
-  },
-  {
-    key:'marjun',
-    title:'Land Not Talked to March 15th to June 15th',
-    icon:'🗂️',
-    sheetId:'1dnWHeKrm88OtzeslQXHume102_iZpNsImmIw2lXmof4',
-    gid:'1957588272'
-  }
-];
-const PAGE_SIZE=50;
+/* ── CONFIG ── */
+const SHEET_ID='1ltGS3psr0WZSeNrxvtHl9Rt2CGYEPQv9DooHRW2WFXE';
+const SHEET_GID='783671061'; // "Logs" tab
+const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+const TZ='America/Chicago'; // timestamps stored in UTC; displayed/bucketed in this TZ
+const WASTED_THRESH=5;
+/* Logs schema is boolean-based (answered / booked / dnc_violation columns). */
+const truthy=v=>/^(true|1|yes|y)$/i.test(String(v==null?'':v).trim());
 
 /* ── STATE ── */
-const stateBy={}; // key -> {rows, cols, filtered, page, sField, sDir}
+let all=[],globalRows=[],filtered=[],page=1,pgSz=25,sField='date',sDir=-1,charts={},cdTimer,cdVal=60;
+let chartBuilt={};
+let leadsData=[];
 
 /* ── UTILS ── */
 const $=id=>document.getElementById(id);
-const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const csvUrl=s=>`https://docs.google.com/spreadsheets/d/${s.sheetId}/export?format=csv&gid=${s.gid}`;
-const fmtPhone=v=>{const d=String(v||'').replace(/\D/g,'');return d.length===10?`(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`:(d.length===11&&d[0]==='1'?`(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`:(v||'—'));};
+const dbn=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isAns=r=>truthy(r.answered);
+const isDNA=r=>!isAns(r);
+const rKey=r=>(r||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z_]/g,'');
+const toISO=raw=>{if(!raw)return'';const d=new Date(raw);if(isNaN(d))return'';return new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);};
+const getHr=raw=>{if(!raw)return null;const d=new Date(raw);if(isNaN(d))return null;return+new Intl.DateTimeFormat('en-US',{timeZone:TZ,hour:'numeric',hour12:false}).format(d);};
+const fmtDur=s=>{const n=parseInt(s,10);if(isNaN(n))return'—';return`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;};
+const fmtDate=raw=>{if(!raw)return'—';const d=new Date(raw);if(isNaN(d))return raw;return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:TZ});};
+const fmtDT=raw=>{if(!raw)return'—';const d=new Date(raw);if(isNaN(d))return raw;return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:TZ});};
 
-/* ── FETCH ── */
-function fetchSheet(s){
-  return new Promise((resolve,reject)=>{
-    Papa.parse(csvUrl(s),{
-      download:true, header:true, skipEmptyLines:true,
-      complete:res=>{
-        const cols=(res.meta.fields||[]).filter(c=>c&&c.trim());
-        const rows=(res.data||[]).filter(r=>cols.some(c=>(r[c]||'').trim()!==''));
-        resolve({cols,rows});
-      },
-      error:err=>reject(err)
-    });
+/* ── SPARKLINES ── */
+function sparkline(svgEl, values, color){
+  if(!svgEl||!values||values.length<2)return;
+  const v=values.filter(x=>x!==null&&!isNaN(x));
+  if(v.length<2)return;
+  const mn=Math.min(...v), mx=Math.max(...v), rng=mx-mn||1;
+  const W=100, H=28, pad=2;
+  const pts=v.map((val,i)=>{
+    const x=pad+(W-pad*2)*i/(v.length-1);
+    const y=H-pad-(H-pad*2)*(val-mn)/rng;
+    return`${x},${y}`;
   });
+  // Area fill
+  const areaD=`M${pts[0]} `+pts.slice(1).map(p=>`L${p}`).join(' ')+` L${pts.at(-1).split(',')[0]},${H} L${pts[0].split(',')[0]},${H} Z`;
+  // Line
+  const lineD=`M${pts[0]} `+pts.slice(1).map(p=>`L${p}`).join(' ');
+  const trend=v.at(-1)>=v[0]?1:-1;
+  const strokeCol=color||(trend>=0?'#22c55e':'#ef4444');
+  const fillCol=strokeCol.replace('#','');
+  svgEl.innerHTML=`<defs><linearGradient id="g${fillCol}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${strokeCol}" stop-opacity=".25"/><stop offset="100%" stop-color="${strokeCol}" stop-opacity="0"/></linearGradient></defs><path d="${areaD}" fill="url(#g${fillCol})"/><path d="${lineD}" fill="none" stroke="${strokeCol}" stroke-width="1.5" stroke-linejoin="round"/>`;
 }
 
-/* ── KPI CHIPS (generic, adapts to the columns present) ── */
-function buildChips(cols,rows){
-  const chips=[];
-  chips.push({label:'Total Leads',val:rows.length.toLocaleString(),accent:'var(--blue)'});
-  if(cols.includes('State')){
-    const states=new Set(rows.map(r=>(r.State||'').trim().toUpperCase()).filter(Boolean));
-    chips.push({label:'States',val:states.size,accent:'var(--purple)'});
-  }
-  if(cols.includes('Call Attempts')){
-    const nums=rows.map(r=>parseInt(r['Call Attempts'],10)).filter(n=>!isNaN(n));
-    const avg=nums.length?Math.round(nums.reduce((a,b)=>a+b,0)/nums.length):0;
-    chips.push({label:'Avg Call Attempts',val:avg,accent:'var(--yellow)'});
-  }
-  if(cols.includes('Talk To')){
-    const talked=rows.filter(r=>/^yes/i.test((r['Talk To']||'').trim())).length;
-    chips.push({label:'Talked To',val:talked.toLocaleString(),accent:'var(--green)'});
-  }
-  if(cols.includes('Duplicate')){
-    const dups=rows.filter(r=>/^yes/i.test((r['Duplicate']||'').trim())).length;
-    chips.push({label:'Duplicates',val:dups.toLocaleString(),accent:'var(--red)'});
-  }
-  return chips;
-}
-
-/* ── CELL RENDER ── */
-function renderCell(col,val){
-  const v=(val||'').trim();
-  if(col==='Phone')return`<td class="mono">${esc(fmtPhone(v))}</td>`;
-  if(/^(talk to|duplicate|listed\/wholesaler)$/i.test(col)){
-    if(/^yes/i.test(v))return`<td class="yn-yes">${esc(v)}</td>`;
-    if(/^no/i.test(v))return`<td class="yn-no">${esc(v)||'No'}</td>`;
-  }
-  return`<td>${esc(v)||'<span style="color:var(--muted)">—</span>'}</td>`;
-}
-
-/* ── RENDER SECTION SHELL ── */
-function renderSection(s,data){
-  const st={...data,filtered:data.rows.slice(),page:1,sField:null,sDir:1};
-  stateBy[s.key]=st;
-  const chips=buildChips(data.cols,data.rows);
-  const sec=document.createElement('section');
-  sec.className='lead-section';
-  sec.innerHTML=`
-    <div class="sec-head">
-      <span class="sec-title">${s.icon} ${esc(s.title)}</span>
-      <span class="sec-pill">${data.rows.length.toLocaleString()} leads</span>
-    </div>
-    <div class="chips">${chips.map(c=>`<div class="chip" style="--accent:${c.accent}"><div class="chip-label">${esc(c.label)}</div><div class="chip-val">${c.val}</div></div>`).join('')}</div>
-    <div class="toolbar">
-      <input type="text" placeholder="🔍 search phone / name / state…" id="q_${s.key}" style="min-width:240px"/>
-      <button class="tbtn" id="exp_${s.key}">⬇ Export CSV</button>
-      <span class="count" id="cnt_${s.key}"></span>
-    </div>
-    <div class="tcard">
-      <div class="tscroll">
-        <table>
-          <thead><tr id="thead_${s.key}"></tr></thead>
-          <tbody id="tbody_${s.key}"></tbody>
-        </table>
-      </div>
-      <div class="pag">
-        <span class="pi" id="pi_${s.key}"></span>
-        <div class="pagr" id="pgr_${s.key}"></div>
-      </div>
-    </div>`;
-  $('dash').appendChild(sec);
-
-  // header (sortable)
-  const thead=$(`thead_${s.key}`);
-  thead.innerHTML=data.cols.map(c=>`<th data-col="${esc(c)}">${esc(c)}</th>`).join('');
-  thead.querySelectorAll('th').forEach(th=>th.onclick=()=>sortSection(s.key,th.dataset.col));
-
-  // search
-  $(`q_${s.key}`).addEventListener('input',e=>{
-    const q=e.target.value.toLowerCase().trim();
-    const st=stateBy[s.key];
-    st.filtered = q? st.rows.filter(r=>['Phone','Name','State'].some(c=>(r[c]||'').toLowerCase().includes(q))) : st.rows.slice();
-    st.page=1;
-    if(st.sField)applySort(st);
-    renderBody(s.key);
+function buildSparklines(rows){
+  // Group by day
+  const days={};
+  rows.forEach(r=>{
+    const d=toISO(r.date);if(!d)return;
+    if(!days[d])days[d]={total:0,ans:0,appts:0,durs:[]};
+    days[d].total++;
+    if(isAns(r)){days[d].ans++;const dur=+r.duration||0;if(dur>0)days[d].durs.push(dur);}
+    if(truthy(r.booked))days[d].appts++;
   });
-  // export
-  $(`exp_${s.key}`).onclick=()=>exportCSV(s);
-
-  renderBody(s.key);
-}
-
-function applySort(st){
-  const f=st.sField, dir=st.sDir;
-  st.filtered.sort((a,b)=>{
-    let x=(a[f]||''),y=(b[f]||'');
-    const nx=parseFloat(String(x).replace(/[^0-9.\-]/g,'')), ny=parseFloat(String(y).replace(/[^0-9.\-]/g,''));
-    const bothNum=!isNaN(nx)&&!isNaN(ny)&&String(x).trim()!==''&&String(y).trim()!=='';
-    if(bothNum)return (nx-ny)*dir;
-    return String(x).localeCompare(String(y))*dir;
+  const sorted=Object.keys(days).sort();
+  if(sorted.length<2)return;
+  const totals=sorted.map(d=>days[d].total);
+  const crRates=sorted.map(d=>days[d].total?Math.round(days[d].ans/days[d].total*100):0);
+  const bcRates=sorted.map(d=>days[d].ans?Math.round(days[d].appts/days[d].ans*100):0);
+  const apptCts=sorted.map(d=>days[d].appts);
+  const avgDurs=sorted.map(d=>days[d].durs.length?Math.round(days[d].durs.reduce((a,b)=>a+b,0)/days[d].durs.length):0);
+  // Reach rate per day (unique leads reached)
+  const dayLeads={};
+  rows.forEach(r=>{
+    const d=toISO(r.date),p=(r.phone||'').trim();if(!d||!p)return;
+    if(!dayLeads[d])dayLeads[d]=new Set();
+    if(isAns(r))dayLeads[d].add(p);
   });
-}
-function sortSection(key,col){
-  const st=stateBy[key];
-  if(st.sField===col)st.sDir*=-1; else {st.sField=col;st.sDir=1;}
-  applySort(st);
-  st.page=1;
-  document.querySelectorAll(`#thead_${key} th`).forEach(th=>{
-    th.classList.remove('sa','sd');
-    if(th.dataset.col===col)th.classList.add(st.sDir===1?'sa':'sd');
-  });
-  renderBody(key);
+  const rrVals=sorted.map(d=>dayLeads[d]?dayLeads[d].size:0);
+  sparkline($('spkTotal'),totals,'#3b82f6');
+  sparkline($('spkCR'),crRates);
+  sparkline($('spkBC'),bcRates);
+  sparkline($('spkRR'),rrVals,'#a855f7');
+  sparkline($('spkAppts'),apptCts,'#06b6d4');
+  sparkline($('spkDur'),avgDurs,'#f97316');
 }
 
-/* ── RENDER BODY + PAGINATION ── */
-function renderBody(key){
-  const s=SECTIONS.find(x=>x.key===key), st=stateBy[key];
-  const tbody=$(`tbody_${key}`), cols=st.cols;
-  const total=st.filtered.length, pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
-  if(st.page>pages)st.page=pages;
-  const start=(st.page-1)*PAGE_SIZE, slice=st.filtered.slice(start,start+PAGE_SIZE);
+/* ── FULL DETAIL MODAL ── */
+function openDetail(r){
+  if(!r)return;
+  $('detailTitle').textContent=`📞 ${r.phone||'Unknown'} — ${fmtDT(r.date)}`;
+  const RCOLS={'dna':'#94a3b8','dnc':'#ef4444','call_later':'#f59e0b','property_sold':'#a855f7','not_interested':'#f87171','interested':'#60a5fa','scheduled_appointment':'#34d399'};
+  const rc=RCOLS[rKey(r.result||'')]||'#94a3b8';
+  const fields=[
+    {l:'Phone',v:r.phone||'—'},
+    {l:'Date & Time',v:fmtDT(r.date)},
+    {l:'Direction',v:(r.direction||'—').toUpperCase()},
+    {l:'Duration',v:fmtDur(r.duration)},
+    {l:'Result',v:`<span style="background:${rc}22;color:${rc};padding:2px 10px;border-radius:20px;font-size:.78rem;font-weight:700">${(r.result||'—').replace(/_/g,' ')}</span>`},
+    {l:'DNA Type',v:dnaType(r)||'—'},
+  ];
+  let html=fields.map(f=>`<div class="detail-field"><label>${f.l}</label><span>${f.v}</span></div>`).join('');
+  if(r.recording){html+=`<div class="detail-audio"><audio controls style="width:100%;accent-color:#3b82f6;margin-top:4px" src="${esc(r.recording)}">No audio support.</audio><div style="margin-top:6px"><a href="${esc(r.recording)}" download style="color:#3b82f6;font-size:.75rem">⬇ Download recording</a></div></div>`;}
+  html+=`<div class="detail-transcript"><label>📝 Full Transcript</label><pre>${esc((r.transcript||'').trim()||'(No transcript available)')}</pre></div>`;
+  // GHL button
+  const ghlBtn=`<div class="detail-audio" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button id="ghlBtn" onclick="openInGHL('${esc(r.phone||'')}',this)" style="background:#7c3aed;border:none;color:#fff;border-radius:6px;padding:7px 16px;cursor:pointer;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:6px">
+      <span>🔗</span><span>View in GHL</span>
+    </button>
+    <span id="ghlStatus" style="font-size:.75rem;color:#94a3b8"></span>
+  </div>`;
+  $('detailBody').innerHTML=html+ghlBtn;
+  $('detailOver').style.display='flex';
+}
+/* ── GHL INTEGRATION ── */
+const GHL_API_KEY = window.GHL_API_KEY || ''; // set per client
+const GHL_LOCATION_ID = window.GHL_LOCATION_ID || ''; // set per client
+const GHL_BASE_URL = 'https://app.gohighlevel.com/v2/location/GHL_LOC/contacts/detail/';
 
-  if(!slice.length){
-    tbody.innerHTML=`<tr class="empty"><td colspan="${cols.length}">No leads match your search.</td></tr>`;
-  } else {
-    tbody.innerHTML=slice.map(r=>`<tr>${cols.map(c=>renderCell(c,r[c])).join('')}</tr>`).join('');
+async function openInGHL(phone, btn){
+  if(!GHL_API_KEY||!GHL_LOCATION_ID){
+    const status=document.getElementById('ghlStatus');
+    status.textContent='⚠ GHL API key / Location ID not configured';
+    status.style.color='#f59e0b';
+    return;
   }
-  $(`cnt_${key}`).textContent=`${total.toLocaleString()} of ${st.rows.length.toLocaleString()} leads`;
-  $(`pi_${key}`).textContent=total?`Showing ${start+1}–${Math.min(start+PAGE_SIZE,total)} of ${total.toLocaleString()}`:'No rows';
-
-  const pgr=$(`pgr_${key}`); pgr.innerHTML='';
-  const mk=(label,pg,opts={})=>{
-    const b=document.createElement('button');b.className='pb'+(opts.on?' on':'');b.textContent=label;
-    if(opts.dis)b.disabled=true; else b.onclick=()=>{st.page=pg;renderBody(key);};
-    pgr.appendChild(b);
-  };
-  mk('‹',st.page-1,{dis:st.page<=1});
-  const win=2; let from=Math.max(1,st.page-win), to=Math.min(pages,st.page+win);
-  if(from>1){mk('1',1,{on:st.page===1});if(from>2)pgr.insertAdjacentHTML('beforeend','<span class="pi" style="padding:0 4px">…</span>');}
-  for(let p=from;p<=to;p++)mk(String(p),p,{on:p===st.page});
-  if(to<pages){if(to<pages-1)pgr.insertAdjacentHTML('beforeend','<span class="pi" style="padding:0 4px">…</span>');mk(String(pages),pages,{on:st.page===pages});}
-  mk('›',st.page+1,{dis:st.page>=pages});
-}
-
-/* ── EXPORT (current filtered view) ── */
-function exportCSV(s){
-  const st=stateBy[s.key], cols=st.cols;
-  const lines=[cols.map(c=>`"${c.replace(/"/g,'""')}"`).join(',')];
-  st.filtered.forEach(r=>lines.push(cols.map(c=>`"${String(r[c]==null?'':r[c]).replace(/"/g,'""')}"`).join(',')));
-  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=s.title.replace(/[^a-z0-9]+/gi,'_')+'.csv';
-  a.click();URL.revokeObjectURL(a.href);
-}
-
-/* ── BOOT ── */
-async function loadAll(){
-  $('sp').style.display='block';$('eb').style.display='none';$('st').style.display='block';
-  $('dash').style.display='none';$('dash').innerHTML='';
+  const status=document.getElementById('ghlStatus');
+  const originalHtml=btn.innerHTML;
+  btn.innerHTML='<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></span> Searching…';
+  btn.disabled=true;
+  status.textContent='';
   try{
-    const results=await Promise.all(SECTIONS.map(fetchSheet));
-    SECTIONS.forEach((s,i)=>renderSection(s,results[i]));
-    $('overlay').style.display='none';
-    $('dash').style.display='block';
-    $('lu').textContent='Updated '+new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const clean=phone.replace(/\D/g,'');
+    const res=await fetch(`https://services.leadconnectorhq.com/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(clean)}`,{
+      headers:{'Authorization':`Bearer ${GHL_API_KEY}`,'Version':'2021-07-28','Content-Type':'application/json'}
+    });
+    const data=await res.json();
+    const contacts=data.contacts||data.data||[];
+    if(!contacts.length){
+      status.textContent='No contact found in GHL for this number';
+      status.style.color='#f87171';
+    } else {
+      const contact=contacts[0];
+      const url=`https://app.gohighlevel.com/v2/location/${GHL_LOCATION_ID}/contacts/detail/${contact.id}`;
+      window.open(url,'_blank');
+      status.textContent=`✓ Opened: ${contact.firstName||''} ${contact.lastName||''}`.trim();
+      status.style.color='#22c55e';
+    }
   }catch(e){
-    $('sp').style.display='none';$('st').style.display='none';
-    $('em').textContent='Could not fetch the lead sheets. '+(e&&e.message?e.message:'');
-    $('eb').style.display='block';
+    status.textContent='Error: '+e.message;
+    status.style.color='#f87171';
+  }
+  btn.innerHTML=originalHtml;
+  btn.disabled=false;
+}
+
+function closeDetail(){
+  $('detailOver').style.display='none';
+  // Stop any playing audio
+  const a=$('detailOver').querySelector('audio');
+  if(a){a.pause();a.currentTime=0;}
+}
+
+/* ── DRILL DOWN ── */
+let drillRows=[];
+function openDrill(title,rows){
+  drillRows=rows;
+  $('drillTitle').textContent=title;
+  $('drillCount').textContent=`${rows.length} call${rows.length!==1?'s':''}`;
+  const tbody=$('drillBody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="6" class="drill-empty">No calls in this segment.</td></tr>`;}
+  else{
+    const frag=document.createDocumentFragment();
+    rows.slice(0,200).forEach((r)=>{
+      const tr=document.createElement('tr');
+      tr.onclick=()=>openDetail(r);
+      tr.title='Click row to open full detail';
+      tr.style.cursor='pointer';
+      const snippet=esc((r.transcript||'').trim().slice(0,70));
+      tr.innerHTML=`<td style="white-space:nowrap">${fmtDT(r.date)}</td><td style="font-family:monospace;font-size:.7rem">${esc(r.phone||'—')}</td><td>${fmtDur(r.duration)}</td><td>${resBadge((r.result||'').trim())}</td><td style="color:#94a3b8;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${snippet||'—'}</td><td><button onclick="event.stopPropagation();this._r&&openDetail(this._r)" style="background:#3b82f6;border:none;color:#fff;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:.72rem;font-weight:600;white-space:nowrap">⇗ Detail</button></td>`;
+      tr.querySelector('button')._r=r;
+      frag.appendChild(tr);
+    });
+    tbody.innerHTML='';
+    tbody.appendChild(frag);
+    if(rows.length>200)tbody.insertAdjacentHTML('beforeend',`<tr><td colspan="6" style="text-align:center;padding:10px;color:#94a3b8;font-size:.72rem">Showing 200 of ${rows.length} calls</td></tr>`);
+  }
+  $('drillOverlay').style.display='block';
+  requestAnimationFrame(()=>$('drillPanel').classList.add('open'));
+}
+
+function closeDrill(){
+  $('drillPanel').classList.remove('open');
+  setTimeout(()=>{$('drillOverlay').style.display='none';},260);
+}
+
+function applyDrillFilter(){
+  // Scroll to table and show drill rows as filtered
+  filtered=[...drillRows];
+  page=1;
+  renderTable();
+  closeDrill();
+  document.querySelector('.tcard').scrollIntoView({behavior:'smooth',block:'start'});
+  $('rCount').textContent=`${filtered.length} rows (drill-down — click Clear to reset)`;
+}
+
+/* ── DNA CLASSIFIER ── */
+function dnaType(r){
+  if(!isDNA(r))return'';
+  const explicit=(r.dna_type||'').trim();
+  if(explicit){
+    const m={voicemail:'Voicemail',no_answer:'No Answer',busy:'Busy',disconnected:'Disconnected',rejected:'Auto-Rejected',unknown:'Unknown'};
+    return m[explicit.toLowerCase()]||explicit.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  }
+  const t=(r.transcript||'').toLowerCase(), dur=parseInt(r.duration,10)||0;
+  if(/forwarded to (voice\s?mail|voicemail)|you know what to do|leave a message|not available|wireless subscriber|cellular customer/.test(t))return'Voicemail';
+  if(/record your name|press 1|extension|directory/.test(t))return'IVR/Screening';
+  if(/i.m sorry/i.test(t)&&dur<=5)return'Auto-Rejected';
+  if(dur<=3&&t.length<30)return'Hung Up';
+  return'Voicemail';
+}
+
+/* ── BADGES ── */
+function resBadge(result){
+  const cls='b b-'+rKey(result);
+  return`<span class="${cls}">${(result||'—').replace(/_/g,' ')}</span>`;
+}
+function dnaBadge(type){
+  if(!type)return'';
+  const m={'Voicemail':'b-dna-vm','IVR/Screening':'b-dna-ivr','Auto-Rejected':'b-dna-rej','Hung Up':'b-dna-rej'};
+  return`<span class="b ${m[type]||'b-dna-vm'}" style="font-size:.6rem">${type}</span>`;
+}
+function dirBadge(d){if(!d)return'—';return`<span class="db d${d[0].toLowerCase()}">${d}</span>`;}
+function rowCls(res){const k=rKey(res);if(k==='scheduled_appointment')return'rs';if(k==='interested')return'ri';if(k==='call_later')return'rc';if(k==='dnc')return'rd';if(k==='not_interested')return'rn';if(k==='property_sold')return'rp';return'';}
+
+/* ── KPIs ── */
+function updateKPIs(rows){
+  const total=rows.length, ans=rows.filter(isAns).length, dna=rows.filter(isDNA).length;
+  const appts=rows.filter(r=>truthy(r.booked)).length;
+  const durs=rows.filter(isAns).map(r=>+r.duration||0).filter(n=>n>0);
+  const avgDur=durs.length?Math.round(durs.reduce((a,b)=>a+b,0)/durs.length):0;
+  const cr=total?Math.round(ans/total*100):0;
+  const bc=ans?Math.round(appts/ans*100):0;
+
+  // Group by phone
+  const lmap={};
+  [...rows].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(r=>{
+    const p=(r.phone||'').trim();if(!p)return;
+    if(!lmap[p])lmap[p]={dna:0,ans:0,booked:false,viol:0,violCalls:[],calls:[]};
+    const l=lmap[p];l.calls.push(r);
+    isDNA(r)?l.dna++:l.ans++;
+    if(truthy(r.booked))l.booked=true;
+    if(truthy(r.dnc_violation)){l.viol++;l.violCalls.push(r);}
+  });
+  leadsData=Object.values(lmap).map(l=>({...l,phone:l.calls[0]?.phone||'',hasDNCViol:l.viol>0,lastResult:l.calls.at(-1)?.result||'',lastRaw:l.calls.at(-1)?.date||null,total:l.calls.length}));
+
+  const reached=leadsData.filter(l=>l.ans>0).length;
+  const rr=leadsData.length?Math.round(reached/leadsData.length*100):0;
+  const booked=leadsData.filter(l=>l.booked);
+  const db=booked.length?Math.round(booked.reduce((a,l)=>a+l.calls.length,0)/booked.length):0;
+  let viols=0,violList=[];
+  leadsData.forEach(l=>{if(!l.viol)return;viols+=l.viol;violList.push({phone:l.phone,dncAt:l.violCalls[0]?.date||null,count:l.viol});});
+  const wasted=leadsData.filter(l=>l.ans===0&&l.dna>=WASTED_THRESH).reduce((a,l)=>a+l.dna,0);
+
+  $('kTotal').textContent=total.toLocaleString();
+  $('kCR').textContent=cr+'%'; $('kCRs').textContent=`${ans} ans / ${dna} DNA`;
+  $('kCRb').innerHTML=cr>=20?'<span class="badge good">Excellent</span>':cr>=10?'<span class="badge warn">Average</span>':'<span class="badge bad">Low</span>';
+  $('kBC').textContent=bc+'%';
+  $('kBCb').innerHTML=bc>=20?'<span class="badge good">Strong</span>':bc>=10?'<span class="badge warn">Avg</span>':'<span class="badge bad">Low</span>';
+  $('kDB').textContent=db||'—';
+  $('kRR').textContent=rr+'%'; $('kRRs').textContent=`${reached}/${leadsData.length} leads`;
+  $('kRRb').innerHTML=rr>=30?'<span class="badge good">Good</span>':rr>=15?'<span class="badge warn">Low</span>':'<span class="badge bad">Critical</span>';
+  $('kAppts').textContent=appts;
+  $('kDur').textContent=fmtDur(avgDur);
+  $('kDNC').textContent=viols;
+  $('kDNCb').innerHTML=viols===0?'<span class="badge good">✓ Clean</span>':'<span class="badge bad">⚠ Risk</span>';
+  $('kWaste').textContent=wasted.toLocaleString();
+
+  renderCompliance(violList);
+  // Also rebuild lead table with global rows
+  setTimeout(()=>renderLeads(rows),0);
+}
+
+/* ── COMPLIANCE (dynamic) ── */
+function renderCompliance(vl){
+  if(vl&&vl.length){
+    $('compCard').style.display='block';
+    $('compBody').innerHTML='<table style="width:100%;font-size:.78rem;color:var(--muted)"><tr><th style="text-align:left;padding:4px 8px">Phone</th><th style="text-align:left;padding:4px 8px">DNC Date</th><th style="text-align:left;padding:4px 8px">Calls After</th></tr>'+
+      vl.map(v=>`<tr><td style="padding:4px 8px;font-family:monospace">${esc(v.phone)}</td><td style="padding:4px 8px">${fmtDT(v.dncAt)}</td><td style="padding:4px 8px"><span class="viol">${v.count} violation${v.count!==1?'s':''}</span></td></tr>`).join('')+'</table>';
+  }else{$('compCard').style.display='none';}
+}
+
+/* ── CHART TAB SYSTEM ── */
+const RCOLS={'dna':'#94a3b8','dnc':'#ef4444','call_later':'#f59e0b','property_sold':'#a855f7','not_interested':'#f87171','interested':'#60a5fa','scheduled_appointment':'#34d399'};
+const getRC=r=>RCOLS[rKey(r)]||'#6366f1';
+const CHART_OPT={animation:{duration:350}};
+
+function buildTab(tab,rows){
+  if(chartBuilt[tab])return; chartBuilt[tab]=true;
+  if(tab===0){
+    const rc={};rows.forEach(r=>{const k=(r.result||'Unknown').trim();rc[k]=(rc[k]||0)+1;});
+    const rl=Object.keys(rc);
+    if(charts.res)charts.res.destroy();
+    charts.res=new Chart($('cResults'),{type:'bar',data:{labels:rl,datasets:[{data:Object.values(rc),backgroundColor:rl.map(getRC),borderRadius:4,borderSkipped:false}]},options:{...CHART_OPT,responsive:true,onClick:(e,els)=>{if(!els.length)return;const lbl=rl[els[0].index];openDrill(`Result: ${lbl}`,rows.filter(r=>(r.result||'Unknown').trim()===lbl));},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y} calls — click to drill down`}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#334155'},beginAtZero:true}}}});
+    const an=rows.filter(isAns).length, dn=rows.filter(isDNA).length;
+    if(charts.donut)charts.donut.destroy();
+    charts.donut=new Chart($('cDonut'),{type:'doughnut',data:{labels:['Answered','DNA'],datasets:[{data:[an,dn],backgroundColor:['#22c55e','#ef4444'],borderColor:'#1e293b',borderWidth:3,hoverOffset:5}]},options:{...CHART_OPT,responsive:true,cutout:'62%',onClick:(e,els)=>{if(!els.length)return;const lbl=['Answered','DNA'][els[0].index];const seg=lbl==='Answered'?rows.filter(isAns):rows.filter(isDNA);openDrill(lbl,seg);},plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:11},padding:12}},tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} — click to drill`}}}}});
+  }
+  if(tab===1){
+    const dc={};rows.forEach(r=>{const d=toISO(r.date);if(d)dc[d]=(dc[d]||0)+1;});
+    const ds=Object.keys(dc).sort();
+    if(charts.daily)charts.daily.destroy();
+    charts.daily=new Chart($('cDaily'),{type:'line',data:{labels:ds,datasets:[{data:ds.map(d=>dc[d]),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',tension:.3,fill:true,pointRadius:4,pointBackgroundColor:'#3b82f6',pointHoverRadius:7}]},options:{...CHART_OPT,responsive:true,onClick:(e,els)=>{if(!els.length)return;const day=ds[els[0].index];openDrill(`Calls on ${day}`,rows.filter(r=>toISO(r.date)===day));},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y} calls — click to drill`}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:9},maxRotation:45},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#334155'},beginAtZero:true}}}});
+  }
+  if(tab===2){
+    const ht={},ha={};rows.forEach(r=>{const h=getHr(r.date);if(h===null)return;ht[h]=(ht[h]||0)+1;if(isAns(r))ha[h]=(ha[h]||0)+1;});
+    const hrs=Array.from({length:24},(_,i)=>i);
+    const rates=hrs.map(h=>ht[h]?Math.round((ha[h]||0)/ht[h]*100):null);
+    const lbls=hrs.map(h=>{const p=h>=12?'PM':'AM';return`${h%12||12}${p}`;});
+    if(charts.hourly)charts.hourly.destroy();
+    charts.hourly=new Chart($('cHourly'),{type:'bar',data:{labels:lbls,datasets:[{data:rates,backgroundColor:rates.map(r=>r===null?'transparent':r>=20?'rgba(34,197,94,.7)':r>=10?'rgba(245,158,11,.7)':'rgba(239,68,68,.55)'),borderRadius:4,borderSkipped:false}]},options:{...CHART_OPT,responsive:true,onClick:(e,els)=>{if(!els.length)return;const hr=els[0].index;openDrill(`Calls at ${lbls[hr]}`,rows.filter(r=>getHr(r.date)===hr));},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y===null?'No calls':`${c.parsed.y}% connect — click to drill`,afterLabel:c=>{const h=c.dataIndex;return`${ht[h]||0} dials · ${ha[h]||0} answered`;}}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:10},callback:v=>v+'%'},grid:{color:'#334155'},beginAtZero:true,max:100}}}});
+  }
+  if(tab===3){
+    const cats={'Voicemail':0,'IVR/Screening':0,'Auto-Rejected':0,'Hung Up':0};
+    rows.filter(isDNA).forEach(r=>{const c=dnaType(r)||'Voicemail';cats[c]=(cats[c]||0)+1;});
+    const lbls=Object.keys(cats).filter(k=>cats[k]>0);
+    if(charts.dna)charts.dna.destroy();
+    charts.dna=new Chart($('cDNA'),{type:'doughnut',data:{labels:lbls,datasets:[{data:lbls.map(k=>cats[k]),backgroundColor:['#64748b','#f59e0b','#ef4444','#94a3b8'],borderColor:'#1e293b',borderWidth:2,hoverOffset:5}]},options:{...CHART_OPT,responsive:true,cutout:'52%',onClick:(e,els)=>{if(!els.length)return;const cat=lbls[els[0].index];openDrill(`DNA: ${cat}`,rows.filter(r=>isDNA(r)&&(dnaType(r)||'Voicemail')===cat));},plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11},padding:10}},tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} — click to drill`}}}}});
+  }
+  if(tab===4){
+    const byPhone={};
+    [...rows].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(r=>{const p=(r.phone||'').trim();if(!p)return;if(!byPhone[p])byPhone[p]=[];byPhone[p].push(r);});
+    const MAX=8;const at=[],aa=[],attemptRows=[];
+    for(let i=0;i<MAX;i++){at[i]=0;aa[i]=0;attemptRows[i]=[];}
+    Object.values(byPhone).forEach(calls=>calls.forEach((r,i)=>{if(i<MAX){at[i]++;attemptRows[i].push(r);if(isAns(r))aa[i]++;}}));
+    const rates=at.map((t,i)=>t?Math.round(aa[i]/t*100):null);
+    if(charts.att)charts.att.destroy();
+    charts.att=new Chart($('cAttempt'),{type:'line',data:{labels:at.map((_,i)=>`#${i+1}`),datasets:[{data:rates,borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,.1)',tension:.3,fill:true,pointRadius:4,pointBackgroundColor:'#a855f7',spanGaps:true}]},options:{...CHART_OPT,responsive:true,onClick:(e,els)=>{if(!els.length)return;const idx=els[0].index;openDrill(`Attempt #${idx+1} calls`,attemptRows[idx]);},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y===null?'No data':`${c.parsed.y}% connect — click to drill`,afterLabel:c=>{const i=c.dataIndex;return`${at[i]} dials · ${aa[i]} answered`;}}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:10},callback:v=>v+'%'},grid:{color:'#334155'},beginAtZero:true,max:100}}}});
+    const dist={};const distRows={};
+    Object.values(byPhone).forEach(c=>{const n=Math.min(c.length,10);dist[n]=(dist[n]||0)+1;if(!distRows[n])distRows[n]=[];distRows[n].push(...c);});
+    const dl=Array.from({length:10},(_,i)=>i<9?`${i+1} dial${i>0?'s':''}`:'+10');
+    const dd=Array.from({length:10},(_,i)=>dist[i+1]||0);
+    if(charts.dist)charts.dist.destroy();
+    charts.dist=new Chart($('cDist'),{type:'bar',data:{labels:dl,datasets:[{data:dd,backgroundColor:'rgba(6,182,212,.6)',borderRadius:4,borderSkipped:false}]},options:{...CHART_OPT,responsive:true,onClick:(e,els)=>{if(!els.length)return;const n=els[0].index+1;openDrill(`Leads with ${n}${n===10?'+':''} dial${n!==1?'s':''}`,distRows[n]||[]);},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y} leads — click to drill`}}},scales:{x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#334155'},beginAtZero:true}}}});
   }
 }
-loadAll();
+
+let activeTab=0;
+function showTab(n){
+  document.querySelectorAll('.chart-panel').forEach((p,i)=>{p.classList.toggle('on',i===n);});
+  document.querySelectorAll('.ctab').forEach((t,i)=>{t.classList.toggle('on',i===n);});
+  activeTab=n;
+  requestAnimationFrame(()=>buildTab(n,globalRows.length?globalRows:all));
+}
+
+/* ── SORT ── */
+function sortBy(f){
+  if(sField===f)sDir*=-1;else{sField=f;sDir=-1;}
+  document.querySelectorAll('thead th').forEach(th=>{th.classList.remove('sa','sd');});
+  event.target.classList.add(sDir===-1?'sd':'sa');
+  filtered.sort((a,b)=>{
+    if(f==='duration')return sDir*((+a[f]||0)-(+b[f]||0));
+    if(f==='date')return sDir*(new Date(a[f])-new Date(b[f]));
+    return sDir*String(a[f]||'').localeCompare(String(b[f]||''));
+  });
+  page=1;renderTable();
+}
+
+/* ── FILTERS ── */
+function setRange(r){
+  document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('on',p.getAttribute('onclick').includes(`'${r}'`)));
+  const now=new Date();let from='',to='';
+  if(r==='today'){from=to=toISO(now.toISOString());}
+  else if(r==='7d'){const d=new Date(now);d.setDate(d.getDate()-7);from=toISO(d.toISOString());}
+  else if(r==='30d'){const d=new Date(now);d.setDate(d.getDate()-30);from=toISO(d.toISOString());}
+  // Update globalRows (affects KPIs, charts, DNC)
+  let newGlobal=all.filter(r=>{
+    const d=toISO(r.date);
+    if(from&&d&&d<from)return false;
+    if(to&&d&&d>to)return false;
+    return true;
+  });
+  globalRows=newGlobal;
+  // Show no-data message if empty
+  const noDataEl=$('noDataMsg');
+  if(noDataEl)noDataEl.style.display=globalRows.length?'none':'flex';
+  // Recalculate everything that depends on global filter
+  setTimeout(()=>updateKPIs(globalRows),0);
+  setTimeout(()=>buildSparklines(globalRows),30);
+  setTimeout(()=>{
+    chartBuilt={};
+    requestAnimationFrame(()=>buildTab(activeTab,globalRows));
+  },60);
+  // Also re-apply table filters within new globalRows
+  applyFilters();
+}
+
+function applyFilters(){
+  const res=$('fRes').value;
+  const ph=($('fPhone').value||'').trim().replace(/\D/g,'');
+  // Table filters apply ON TOP of globalRows (not all)
+  const base=globalRows.length?globalRows:all;
+  filtered=base.filter(r=>{
+    if(res&&(r.result||'').trim()!==res)return false;
+    if(ph&&!(r.phone||'').replace(/\D/g,'').includes(ph))return false;
+    return true;
+  });
+  page=1;renderTable();
+}
+
+function clearFilters(){
+  ['fRes','fFrom','fTo','fPhone'].forEach(id=>$(id).value='');
+  document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('on',p.onclick.toString().includes("'all'")));
+  applyFilters();
+}
+
+function chgPgSz(){pgSz=+$('psz').value;page=1;renderTable();}
+
+/* ── TABLE ── */
+function renderTable(){
+  const total=filtered.length, pages=Math.max(1,Math.ceil(total/pgSz));
+  page=Math.min(page,pages);
+  const start=(page-1)*pgSz, slice=filtered.slice(start,start+pgSz);
+  $('rCount').textContent=`${total.toLocaleString()} rows`;
+  $('pi').textContent=`Page ${page}/${pages}`;
+  const tbody=$('tbody');
+  if(!slice.length){tbody.innerHTML='<tr class="empty"><td colspan="8">No calls match filters.</td></tr>';renderPag(pages);return;}
+  const frag=document.createDocumentFragment();
+  slice.forEach((r)=>{
+    const dt=dnaType(r);
+    const row=document.createElement('tr');
+    row.className=rowCls(r.result);
+    row.style.cursor='pointer';
+    row.title='Click to view full call detail';
+    row.onclick=()=>openDetail(r);
+    const snippet=esc((r.transcript||'').trim().slice(0,80));
+    const trH=`<span class="ts">${snippet}${(r.transcript||'').length>80?'…':''}</span>`;
+    row.innerHTML=`<td style="white-space:nowrap;font-size:.72rem">${fmtDT(r.date)}</td><td style="font-family:monospace;font-size:.72rem">${esc(r.phone||'—')}</td><td>${dirBadge(r.direction)}</td><td>${fmtDur(r.duration)}</td><td>${resBadge((r.result||'').trim())}</td><td>${dnaBadge(dt)}</td><td>${r.recording?'<span style="color:#22c55e;font-size:.78rem">●</span>':'—'}</td><td class="tc">${trH}</td>`;
+    frag.appendChild(row);
+  });
+  tbody.innerHTML=''; tbody.appendChild(frag);
+  renderPag(pages);
+}
+
+function renderPag(pages){
+  const c=page, btns=$('pgbtns');
+  if(pages<=1){btns.innerHTML='';return;}
+  let h=`<button class="pb" onclick="goPage(${c-1})" ${c===1?'disabled':''}>‹</button>`;
+  let lo=Math.max(1,c-2),hi=Math.min(pages,lo+4);lo=Math.max(1,hi-4);
+  if(lo>1)h+=`<button class="pb" onclick="goPage(1)">1</button>${lo>2?'<span style="color:var(--muted);padding:0 2px">…</span>':''}`;
+  for(let p=lo;p<=hi;p++)h+=`<button class="pb${p===c?' on':''}" onclick="goPage(${p})">${p}</button>`;
+  if(hi<pages)h+=`${hi<pages-1?'<span style="color:var(--muted);padding:0 2px">…</span>':''}<button class="pb" onclick="goPage(${pages})">${pages}</button>`;
+  h+=`<button class="pb" onclick="goPage(${c+1})" ${c===pages?'disabled':''}>›</button>`;
+  btns.innerHTML=h;
+}
+function goPage(p){page=p;renderTable();document.querySelector('.tcard').scrollIntoView({behavior:'smooth',block:'start'});}
+
+/* ── LEAD TABLE ── */
+const LEAD_PAGE=50;
+let leadOffset=0;
+
+function renderLeads(rows){
+  leadOffset=0;
+  $('lCount').textContent=`${leadsData.length} unique leads`;
+  const si=$('leadSearch');
+  function filter(){
+    const q=si.value.trim().replace(/\D/g,'');
+    const data=q?leadsData.filter(l=>l.phone.replace(/\D/g,'').includes(q)):leadsData;
+    $('lCount').textContent=`${data.length} of ${leadsData.length} leads`;
+    leadOffset=0;
+    draw(data, true);
+  }
+  si.oninput=dbn(filter,150);
+  draw(leadsData, true);
+}
+
+let _currentLeadData=[];
+
+function draw(data, reset=false){
+  const COLS={'Scheduled Appointment':'#22c55e','Interested':'#3b82f6','Call_later':'#f59e0b','Not Interested':'#ef4444','DNC':'#dc2626','Property Sold':'#a855f7','DNA':'#6b7280'};
+  _currentLeadData=data;
+  if(reset)leadOffset=0;
+  const tbody=$('ltbody');
+  if(!data.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted)">No leads</td></tr>';$('lCount').textContent='0 leads';return;}
+  const slice=data.slice(0, leadOffset+LEAD_PAGE);
+  const frag=document.createDocumentFragment();
+  slice.forEach(l=>{
+    const col=COLS[l.lastResult]||'var(--muted)';
+    const tr=document.createElement('tr');
+    tr.style.cssText=`border-top:1px solid var(--border)${l.hasDNCViol?';background:rgba(239,68,68,.04)':''}`;
+    tr.innerHTML=`<td style="font-family:monospace;font-size:.75rem">${l.phone}</td><td style="text-align:center;font-weight:700;color:var(--cyan)">${l.total}</td><td style="text-align:center;color:#22c55e">${l.ans}</td><td style="text-align:center;color:var(--muted)">${l.dna}</td><td style="text-align:center;color:#22c55e">${l.booked?'✓':0}</td><td style="text-align:center;color:#dc2626">${l.viol||0}</td><td style="text-align:center">${l.hasDNCViol?'<span class="viol" style="font-size:.65rem">⚠ VIOL</span>':'<span style="color:#f59e0b;font-size:.82rem" title="No violations">—</span>'}</td><td><span style="background:${col}22;color:${col};padding:1px 7px;border-radius:4px;font-size:.68rem">${l.lastResult||'—'}</span></td><td style="color:var(--muted);font-size:.72rem;white-space:nowrap">${l.lastRaw?fmtDate(l.lastRaw):'—'}</td>`;
+    frag.appendChild(tr);
+  });
+  tbody.innerHTML=''; tbody.appendChild(frag);
+  leadOffset=slice.length;
+  // Show load-more button if more data exists
+  const remaining=data.length-slice.length;
+  $('lCount').textContent=`Showing ${slice.length} of ${data.length} leads${remaining>0?' — scroll for more':''}`;
+  if(remaining>0){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td colspan="9" style="text-align:center;padding:12px"><button onclick="loadMoreLeads()" style="background:#263348;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:6px 18px;cursor:pointer;font-size:.78rem">Load ${Math.min(remaining,LEAD_PAGE)} more leads</button></td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function loadMoreLeads(){
+  draw(_currentLeadData, false);
+}
+
+/* ── MODAL ── */
+function openModal(idx){
+  const r=filtered[idx];if(!r)return;
+  $('mTitle').textContent=`Transcript — ${r.phone||''} (${fmtDT(r.date)})`;
+  $('mBody').textContent=(r.transcript||'').trim()||'(No transcript)';
+  $('modal').style.display='flex';
+}
+
+/* ── AUDIO ── */
+function openAudio(url){const p=$('aPlay'),dl=$('aDl');p.src=url;dl.href=url;$('aMod').style.display='flex';p.play().catch(()=>{});}
+function closeAudio(){const p=$('aPlay');p.pause();p.src='';$('aMod').style.display='none';}
+$('aMod').addEventListener('click',function(e){if(e.target===this)closeAudio();});
+
+/* ── EXPORT ── */
+function exportCSV(){
+  const hdr=['Date','Phone','Direction','Duration','Result','DNA Type','Has Rec','Transcript'];
+  const rows=filtered.map(r=>[fmtDT(r.date),(r.phone||'').trim(),(r.direction||''),(r.duration||''),(r.result||''),dnaType(r),r.recording?'Yes':'No',((r.transcript||'').trim().slice(0,100).replace(/"/g,"'").replace(/\n/g,' '))]);
+  const csv=[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`calls-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+/* ── LOAD ── */
+function showLoad(){$('sp').style.display='block';$('st').style.display='block';$('eb').style.display='none';$('overlay').style.display='flex';$('dash').style.display='none';}
+function showErr(m){$('sp').style.display='none';$('st').style.display='none';$('eb').style.display='block';$('em').textContent=m;$('overlay').style.display='flex';}
+function showDash(){$('overlay').style.display='none';$('dash').style.display='block';}
+
+async function loadData(){
+  Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';Chart.defaults.font.family="'Segoe UI',system-ui,sans-serif";
+  showLoad();
+  try{
+    const result=await new Promise((res,rej)=>Papa.parse(CSV_URL,{download:true,header:true,skipEmptyLines:true,complete:res,error:rej}));
+    if(!result||!result.meta||!(result.meta.fields||[]).length){showErr('Sheet returned no columns. Make sure the Logs tab is published publicly.');return;}
+    all=result.data.map(row=>{
+      const n={};Object.keys(row).forEach(k=>{n[k.trim().toLowerCase()]=(row[k]||'').trim();});
+      // Map Logs-tab schema -> internal field names
+      n.date=n.date||n.timestamp_utc||n.timestamp||'';
+      n.phone=n.phone||n.lead_phone||'';
+      n.duration=n.duration||n.duration_sec||'';
+      n.recording=n.recording||n.recording_url||'';
+      n.name=n.name||n.lead_name||'';
+      return n;
+    }).filter(r=>r.date||r.phone||r.result);
+    all.sort((a,b)=>{const da=new Date(a.date),db=new Date(b.date);return(isNaN(da)?0:da)>(isNaN(db)?0:db)?-1:1;});
+    // Populate Result filter from actual values present
+    const resVals=[...new Set(all.map(r=>(r.result||'').trim()).filter(Boolean))].sort();
+    const resSel=$('fRes');
+    if(resSel)resSel.innerHTML='<option value="">All Results</option>'+resVals.map(v=>`<option value="${esc(v)}">${esc(v.replace(/_/g,' '))}</option>`).join('');
+    chartBuilt={};
+    globalRows=[...all];
+    showDash();
+    $('lu').textContent=`Updated ${new Date().toLocaleTimeString()}`;
+    // setRange('today') called at boot handles all rendering
+  }catch(err){
+    const m=err?.message||String(err);
+    showErr(m.includes('NetworkError')||m.includes('fetch')||m.includes('CORS')?'Network error — sheet may not be public.':'Error: '+m);
+  }
+}
+
+/* ── COUNTDOWN ── */
+function startCD(){
+  clearInterval(cdTimer);cdVal=60;$('cd').textContent='60s';
+  cdTimer=setInterval(()=>{cdVal--;$('cd').textContent=cdVal+'s';if(cdVal<=0){clearInterval(cdTimer);loadData().then(startCD);}},1000);
+}
+
+/* ── LISTENERS ── */
+const df=dbn(applyFilters,150);
+$('fRes').addEventListener('change',applyFilters);
+if($('fFrom'))$('fFrom').addEventListener('change',applyFilters);
+if($('fTo'))$('fTo').addEventListener('change',applyFilters);
+$('fPhone').addEventListener('input',df);
+loadData().then(()=>{
+  startCD();
+  // Render immediately — no setTimeout race condition
+  // Default to last 7 days — always has data
+  const now7=new Date(); now7.setDate(now7.getDate()-7);
+  const from7=toISO(now7.toISOString());
+  globalRows=all.filter(r=>{const d=toISO(r.date);return d&&d>=from7;});
+  // If no data in last 7 days, fall back to most recent 7 days of actual data
+  if(!globalRows.length && all.length){
+    const dates=all.map(r=>toISO(r.date)).filter(Boolean).sort();
+    const latest=dates.at(-1);
+    const earliest=dates[Math.max(0,dates.length-1)];
+    const cutoff=dates[Math.max(0,dates.length-50)]; // last 50 records
+    globalRows=all.filter(r=>{const d=toISO(r.date);return d>=cutoff;});
+  }
+  document.querySelectorAll('.pill').forEach(p=>{
+    p.classList.toggle('on',(p.getAttribute('onclick')||'').includes("'7d'"));
+  });
+  filtered=[...globalRows];
+  updateKPIs(globalRows);
+  buildSparklines(globalRows);
+  renderTable();
+  renderLeads(globalRows);
+  requestAnimationFrame(()=>buildTab(0,globalRows));
+});
 </script>
 </body>
 </html>
+
